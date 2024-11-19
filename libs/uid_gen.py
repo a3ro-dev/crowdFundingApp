@@ -1,6 +1,7 @@
 import secrets
 import string
 import time
+import threading
 
 class UIDGen:
     """UID Generator class that ensures unique identifiers for users"""
@@ -14,6 +15,7 @@ class UIDGen:
         """
         self.char_set = string.ascii_letters + string.digits + "!@#$&_"
         self.db_wrapper = db_wrapper
+        self.lock = threading.Lock()
         self._used_uids = set()  # Cache of used UIDs
         self._load_existing_uids()
 
