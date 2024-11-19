@@ -4,6 +4,17 @@ import stat
 import platform
 
 def generate_docx_with_shapes(template_path, output_dir, details):
+    """
+    Generates a .docx certificate by replacing placeholders with actual details.
+
+    Args:
+        template_path (str): Path to the .docx template.
+        output_dir (str): Directory to save the generated certificate.
+        details (dict): Dictionary containing placeholders and their replacements.
+
+    Returns:
+        str: Path to the generated .docx file.
+    """
     doc = Document(template_path)
 
     # Replace text in paragraphs
@@ -35,3 +46,5 @@ def generate_docx_with_shapes(template_path, output_dir, details):
         os.chmod(output_docx_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
 
     return output_docx_path
+
+# Coded with ❤️ by a3ro-dev

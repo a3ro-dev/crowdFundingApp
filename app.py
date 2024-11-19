@@ -4,13 +4,13 @@ import streamlit as st
 from datetime import datetime
 import libs.db_con as db_con
 import libs.uid_gen as uid_gen
-import json  # For handling JSON data in transactions
+import json  
 
 import libs.certGen as cert_gen
 import os
 
 # Import admin functions from adminPanel.py
-from libs.adminPanel import admin_login, admin_panel
+from libs.adminPanel import AdminPanel
 
 SECRETCODE = os.environ.get("SECRET_CODE")
 
@@ -39,9 +39,13 @@ def generate_certificate(user_name, uid, num_shares, certificate_type):
             st.error(f"Error generating certificate: {e}")
             return False
     return False
+
 # Initialize database and UID generator
 db_wrapper = db_con.DBWrapper()
 uid_generator = uid_gen.UIDGen(db_wrapper)
+
+# Initialize AdminPanel object
+admin_panel = AdminPanel()
 
 def main():
     # Set page configuration
@@ -49,11 +53,20 @@ def main():
         page_title="Crowdfunding Portal",
         page_icon="💰",
         layout="wide",
+        initial_sidebar_state="auto",
+        menu_items={'About': """
+    This Crowdfunding Portal is designed to facilitate investments in an upcoming project by Akshat Singh Kushwaha. 
+    Investors can buy profit shares, reinvest, and transfer investments through this portal. 
+    The app also provides options for generating and managing investment certificates.
+    """}
+        
     )
 
     # Initialize session state variables
     if 'current_page' not in st.session_state:
         st.session_state['current_page'] = 'home'
+    if 'admin_logged_in' not in st.session_state:
+        st.session_state['admin_logged_in'] = False
 
     # Add admin button at the bottom-left corner
     add_admin_button()
@@ -77,9 +90,6 @@ def main():
             admin_panel.admin_panel()
         else:
             admin_panel.admin_login()
-    elif st.session_state['current_page'] == 'about':
-        about_page()
-
     # Add footer
     st.markdown("""
     <div style='position: fixed; bottom: 10px; width: 100%; text-align: center;'>
@@ -114,8 +124,6 @@ def home_page():
         st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
         buy_clicked = st.button("Buy", key="buy_button")
         verify_clicked = st.button("Verify", key="verify_button")
-        admin_clicked = st.button("Admin", key="admin_button")
-        about_clicked = st.button("About", key="about_button")
         st.markdown('</div>', unsafe_allow_html=True)
     
     if buy_clicked:
@@ -124,20 +132,6 @@ def home_page():
     elif verify_clicked:
         st.session_state['current_page'] = 'verify'
         st.rerun()
-    elif admin_clicked:
-        st.session_state['current_page'] = 'admin'
-        st.rerun()
-    elif about_clicked:
-        st.session_state['current_page'] = 'about'
-        st.rerun()
-
-def about_page():
-    st.subheader("About This App")
-    st.write("""
-    This Crowdfunding Portal is designed to facilitate investments in an upcoming project by Akshat Singh Kushwaha. 
-    Investors can buy profit shares, reinvest, and transfer investments through this portal. 
-    The app also provides options for generating and managing investment certificates.
-    """)
 
 def buy_shares():
     st.header("Profit Shares* Management")
@@ -525,3 +519,4 @@ def verify_uid():
 if __name__ == "__main__":
     main()
     db_wrapper.close()
+    # Coded with ❤️ by a3ro-dev

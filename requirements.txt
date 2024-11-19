@@ -5,3 +5,4 @@ psutil
 fuzzywuzzy[speedup]
 python-Levenshtein
 plotly
+pyyaml
