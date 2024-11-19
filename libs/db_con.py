@@ -1,3 +1,5 @@
+# db_con.py
+
 import sqlite3
 import hashlib
 import os
@@ -28,7 +30,8 @@ class DBWrapper:
                 date_of_investment TEXT NOT NULL,
                 resale_value REAL,
                 certificate_type TEXT,
-                updates TEXT
+                updates TEXT,
+                transactions TEXT
             )
         ''')
         self.connection.commit()
@@ -53,7 +56,7 @@ class DBWrapper:
         })
         
         self.cursor.execute('UPDATE users SET updates = ? WHERE uid = ?', 
-                          (json.dumps(updates), uid))
+                            (json.dumps(updates), uid))
         self.connection.commit()
 
     def get_updates(self, uid):
@@ -80,9 +83,9 @@ class DBWrapper:
         email_hash = self._hash_data(email) if email else None
         
         self.cursor.execute('''
-            INSERT INTO users (uid, name, phone_hash, email_hash, amount_invested, date_of_investment, resale_value)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (uid, name, phone_hash, email_hash, amount_invested, date_of_investment, resale_value))
+            INSERT INTO users (uid, name, phone_hash, email_hash, amount_invested, date_of_investment, resale_value, transactions)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (uid, name, phone_hash, email_hash, amount_invested, date_of_investment, resale_value, '[]'))
         self.connection.commit()
 
     def update_email(self, uid, new_email):
@@ -95,9 +98,36 @@ class DBWrapper:
         self.cursor.execute('SELECT * FROM users WHERE uid = ?', (uid,))
         return self.cursor.fetchone()
 
-    def update_resale_value(self, uid, resale_value):
-        self.cursor.execute('UPDATE users SET resale_value = ? WHERE uid = ?', (resale_value, uid))
+    def update_investment(self, uid, new_amount_invested, new_resale_value):
+        self.cursor.execute('''
+            UPDATE users SET amount_invested = ?, resale_value = ? WHERE uid = ?
+        ''', (new_amount_invested, new_resale_value, uid))
         self.connection.commit()
+
+    def add_transaction(self, uid, transaction_type, amount, details):
+        current_time = datetime.now().isoformat()
+        self.cursor.execute('SELECT transactions FROM users WHERE uid = ?', (uid,))
+        result = self.cursor.fetchone()
+        if result and result[0]:
+            transactions = json.loads(result[0])
+        else:
+            transactions = []
+
+        transactions.append({
+            'timestamp': current_time,
+            'type': transaction_type,
+            'amount': amount,
+            'details': details
+        })
+
+        self.cursor.execute('UPDATE users SET transactions = ? WHERE uid = ?', 
+                            (json.dumps(transactions), uid))
+        self.connection.commit()
+
+    def get_transactions(self, uid):
+        self.cursor.execute('SELECT transactions FROM users WHERE uid = ?', (uid,))
+        result = self.cursor.fetchone()
+        return json.loads(result[0]) if result and result[0] else []
 
     def close(self):
         self.connection.close()
