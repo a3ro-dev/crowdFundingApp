@@ -116,7 +116,7 @@ def new_user_investment():
         # Terms and conditions
         agree_tnc = st.checkbox("I agree to the Terms and Conditions", key="new_agree_tnc")
         agree_non_refund = st.checkbox("I agree that the amount is non-refundable except by the founder's will", key="new_agree_non_refund")
-        st.markdown("[View Terms and Conditions](terms_and_conditions.md)", unsafe_allow_html=True)
+        st.markdown("[View Terms and Conditions](assets/terms_and_conditions.md)", unsafe_allow_html=True)
 
         # Proceed button
         if st.button("Proceed", key="new_proceed"):
