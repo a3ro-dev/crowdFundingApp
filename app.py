@@ -204,7 +204,7 @@ def existing_user_management():
                 st.session_state.user_data = user
                 # Log verification as a transaction
                 db_wrapper.add_transaction(uid, "verification", 0, "User checked account details")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("UID not found. Please check and try again.")
     else:
@@ -291,7 +291,7 @@ def reinvestment(uid, user):
                 st.session_state.additional_investment = 0
                 # Update user data
                 st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"An error occurred: {e}")
     else:
@@ -300,83 +300,130 @@ def reinvestment(uid, user):
     # Option to reset verification
     if st.button("Cancel Reinvestment", key="cancel_reinvestment"):
         st.session_state.reinvest_verified = False
-        st.experimental_rerun()
+        st.rerun()
 
 def transfer_investment(uid, user):
     st.subheader("Transfer Investment")
     
+    # Initialize session states for transfer
+    if 'transfer_step' not in st.session_state:
+        st.session_state.transfer_step = 1
+    if 'target_user' not in st.session_state:
+        st.session_state.target_user = None
+    if 'transfer_amount' not in st.session_state:
+        st.session_state.transfer_amount = 500
+        
+    # Display sender info
     st.write(f"**Your Name:** {user[1]}")
     st.write(f"**Your Current Investment:** ₹{user[4]}")
     st.write(f"**Your Current Resale Value:** ₹{user[6]}")
 
-    target_uid = st.text_input("Enter recipient's UID:", key="transfer_target_uid")
-    if st.button("Verify Recipient UID", key="verify_recipient_uid"):
-        target_user = db_wrapper.get_user_by_uid(target_uid)
-        if target_user:
-            st.success("Recipient UID verified!")
-            st.write(f"**Recipient Name:** {target_user[1]}")
-            st.write(f"**Recipient Current Investment:** ₹{target_user[4]}")
-            st.write(f"**Recipient Current Resale Value:** ₹{target_user[6]}")
+    # Step 1: Get and verify recipient UID
+    if st.session_state.transfer_step == 1:
+        target_uid = st.text_input("Enter recipient's UID:", key="transfer_target_uid")
+        if st.button("Verify Recipient"):
+            target_user = db_wrapper.get_user_by_uid(target_uid)
+            if target_user and target_uid != uid:  # Prevent self-transfer
+                st.session_state.target_user = target_user
+                st.session_state.target_uid = target_uid
+                st.session_state.transfer_step = 2
+                st.rerun()
+            elif target_uid == uid:
+                st.error("You cannot transfer to yourself.")
+            else:
+                st.error("Recipient UID not found.")
 
-            transfer_amount = st.number_input("Enter amount to transfer (in multiples of ₹500):",
-                                              min_value=500, step=500, key="transfer_amount")
+    # Step 2: Show recipient details and get transfer amount
+    elif st.session_state.transfer_step == 2:
+        st.success("Recipient Verified!")
+        target_user = st.session_state.target_user
+        st.write(f"**Recipient Name:** {target_user[1]}")
+        st.write(f"**Recipient Current Investment:** ₹{target_user[4]}")
+        
+        transfer_amount = st.number_input(
+            "Amount to transfer (in multiples of ₹500):",
+            min_value=500,
+            max_value=user[4],
+            step=500,
+            value=st.session_state.transfer_amount
+        )
+        st.session_state.transfer_amount = transfer_amount
 
-            # Certificate type selection
-            certificate_type = st.selectbox(
-                "Choose Certificate Type:",
-                ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"],
-                key="transfer_cert_type"
-            )
-            cert_cost = 0
-            if certificate_type == "Small Card (₹40)":
-                cert_cost = 40
-            elif certificate_type == "A4 Sized Certificate (₹80)":
-                cert_cost = 80
-
-            # Secret code verification only at confirmation
-            secret_code = st.text_input("Enter the secret code to proceed:", key="transfer_secret_code", type="password")
-
-            if st.button("Confirm Transfer", key="confirm_transfer"):
-                if secret_code != 'swascat':
-                    st.error("Invalid secret code.")
-                    return
-                    
-                if transfer_amount > user[4]:
-                    st.error("Transfer amount exceeds your current investment.")
-                elif transfer_amount % 500 != 0:
-                    st.error("Transfer amount must be in multiples of ₹500.")
-                else:
-                    # Calculate new investment and resale values
+        # Certificate selection
+        certificate_type = st.selectbox(
+            "Choose Certificate Type:",
+            ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"],
+            key="transfer_cert_type"
+        )
+        
+        # Final confirmation with secret code
+        secret_code = st.text_input("Enter secret code to confirm transfer:", type="password")
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("← Back"):
+                st.session_state.transfer_step = 1
+                st.session_state.target_user = None
+                st.rerun()
+        
+        if st.button("Confirm Transfer"):
+            if secret_code != 'swascat':
+                st.error("Invalid secret code.")
+            elif transfer_amount > user[4]:
+                st.error("Transfer amount exceeds your current investment.")
+            elif transfer_amount % 500 != 0:
+                st.error("Transfer amount must be in multiples of ₹500.")
+            else:
+                try:
+                    # Calculate new values
                     sender_new_investment = user[4] - transfer_amount
-                    sender_num_shares = sender_new_investment // 500
-                    sender_new_resale = 480 * sender_num_shares
-
+                    sender_new_resale = 480 * (sender_new_investment // 500)
+                    
                     recipient_new_investment = target_user[4] + transfer_amount
-                    recipient_num_shares = recipient_new_investment // 500
-                    recipient_new_resale = 480 * recipient_num_shares
+                    recipient_new_resale = 480 * (recipient_new_investment // 500)
 
-                    try:
-                        # Update sender's data
-                        db_wrapper.update_investment(uid, sender_new_investment, sender_new_resale)
-                        db_wrapper.add_transaction(uid, "transfer_out", -transfer_amount,
-                                                   f"Transferred to UID {target_uid}")
+                    # Update database
+                    db_wrapper.update_investment(uid, sender_new_investment, sender_new_resale)
+                    db_wrapper.update_investment(st.session_state.target_uid, 
+                                              recipient_new_investment, 
+                                              recipient_new_resale)
 
-                        # Update recipient's data
-                        db_wrapper.update_investment(target_uid, recipient_new_investment, recipient_new_resale)
-                        db_wrapper.add_transaction(target_uid, "transfer_in", transfer_amount,
-                                                   f"Received from UID {uid}")
+                    # Log transactions
+                    db_wrapper.add_transaction(uid, "transfer_out", 
+                                            -transfer_amount,
+                                            f"Transferred to UID {st.session_state.target_uid}")
+                    db_wrapper.add_transaction(st.session_state.target_uid, 
+                                            "transfer_in",
+                                            transfer_amount,
+                                            f"Received from UID {uid}")
 
-                        st.success("Transfer successful!")
-                        # Generate certificate if selected
-                        if certificate_type == "A4 Sized Certificate (₹80)":
-                            generate_certificate(user[1], uid, transfer_amount // 500, certificate_type)
-                        # Update user data
-                        st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error(f"An error occurred: {e}")
-        else:
-            st.error("Recipient UID not found.")
+                    # Generate certificate if selected
+                    if certificate_type == "A4 Sized Certificate (₹80)":
+                        if generate_certificate(target_user[1], st.session_state.target_uid, 
+                                             transfer_amount // 500, certificate_type):
+                            st.success("Certificate will be generated for the recipient.")
+
+                    # Success message
+                    st.success("Transfer completed successfully!")
+                    
+                    # Reset transfer state
+                    st.session_state.transfer_step = 1
+                    st.session_state.target_user = None
+                    st.session_state.transfer_amount = 500
+                    
+                    # Update user data
+                    st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"Transfer failed: {str(e)}")
+
+    # Cancel button
+    if st.button("Cancel Transfer"):
+        st.session_state.transfer_step = 1
+        st.session_state.target_user = None
+        st.session_state.transfer_amount = 500
+        st.rerun()
 
 def verify_uid():
     st.header("Verify UID")
