@@ -192,24 +192,19 @@ def existing_user_management():
     if 'uid_verified' not in st.session_state:
         st.session_state.uid_verified = False
 
-    # UID input and verification
+    # UID input and verification without secret code
     if not st.session_state.uid_verified:
         uid = st.text_input("Enter your UID:", key="existing_uid")
         if st.button("Verify UID", key="verify_uid"):
             user = db_wrapper.get_user_by_uid(uid)
             if user:
-                # Secret code verification
-                secret_code = st.text_input("Enter the secret code to proceed:", key="existing_secret_code", type="password")
-                if secret_code != 'swascat':
-                    st.error("Invalid secret code.")
-                else:
-                    st.success("UID verified!")
-                    st.session_state.uid_verified = True
-                    st.session_state.uid = uid
-                    st.session_state.user_data = user
-                    # Log verification as a transaction
-                    db_wrapper.add_transaction(uid, "verification", 0, "User checked account details")
-                    st.experimental_rerun()
+                st.success("UID verified!")
+                st.session_state.uid_verified = True
+                st.session_state.uid = uid
+                st.session_state.user_data = user
+                # Log verification as a transaction
+                db_wrapper.add_transaction(uid, "verification", 0, "User checked account details")
+                st.experimental_rerun()
             else:
                 st.error("UID not found. Please check and try again.")
     else:
@@ -236,79 +231,71 @@ def existing_user_management():
 def reinvestment(uid, user):
     st.subheader("Reinvestment")
 
-    # Initialize reinvestment verification state
-    if 'reinvest_verified' not in st.session_state:
-        st.session_state.reinvest_verified = False
+    st.write(f"**Name:** {user[1]}")
+    st.write(f"**Current Investment:** ₹{user[4]}")
+    st.write(f"**Current Resale Value:** ₹{user[6]}")
 
-    if not st.session_state.reinvest_verified:
-        # Secret code verification
-        secret_code = st.text_input("Enter the secret code to proceed:", key="reinvest_secret_code", type="password")
-        if st.button("Verify", key="reinvest_verify_button"):
-            if secret_code == 'swascat':
-                st.session_state.reinvest_verified = True
-                st.success("Secret code verified!")
-                st.experimental_rerun()
-            else:
-                st.error("Invalid secret code.")
-    else:
-        st.write(f"**Name:** {user[1]}")
+    if 'additional_investment' not in st.session_state:
+        st.session_state.additional_investment = 0
+
+    if st.button("Add ₹500", key="reinvest_add_500"):
+        st.session_state.additional_investment += 500
+
+    additional_investment = st.session_state.additional_investment
+    if additional_investment > 0:
+        new_total_investment = user[4] + additional_investment
+        num_shares = new_total_investment // 500
+        new_resale_value = 480 * num_shares
+
+        st.markdown("### Investment Summary:")
         st.write(f"**Current Investment:** ₹{user[4]}")
-        st.write(f"**Current Resale Value:** ₹{user[6]}")
+        st.write(f"**Additional Investment:** ₹{additional_investment}")
+        st.write(f"**New Total Investment:** ₹{new_total_investment}")
+        st.write(f"**New Resale Value:** ₹{new_resale_value}")
 
-        if 'additional_investment' not in st.session_state:
-            st.session_state['additional_investment'] = 0
+        # Certificate type selection
+        certificate_type = st.selectbox(
+            "Choose Certificate Type:",
+            ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"],
+            key="reinvest_cert_type"
+        )
+        cert_cost = 0
+        if certificate_type == "Small Card (₹40)":
+            cert_cost = 40
+        elif certificate_type == "A4 Sized Certificate (₹80)":
+            cert_cost = 80
 
-        if st.button("Add ₹500", key="reinvest_add_500"):
-            st.session_state['additional_investment'] += 500
+        # Secret code verification only at confirmation
+        secret_code = st.text_input("Enter the secret code to proceed:", key="reinvest_secret_code", type="password")
+        
+        if st.button("Confirm Reinvestment", key="confirm_reinvestment"):
+            if secret_code != 'swascat':
+                st.error("Invalid secret code.")
+                return
+                
+            try:
+                # Update user investment and resale value
+                db_wrapper.update_investment(uid, new_total_investment, new_resale_value)
+                # Log transaction
+                db_wrapper.add_transaction(uid, "reinvestment", additional_investment, "Added additional investment")
+                st.success("Reinvestment successful!")
 
-        additional_investment = st.session_state['additional_investment']
-        if additional_investment > 0:
-            new_total_investment = user[4] + additional_investment
-            num_shares = new_total_investment // 500
-            new_resale_value = 480 * num_shares
+                # Generate certificate if selected and A4 option
+                if certificate_type == "A4 Sized Certificate (₹80)":
+                    if generate_certificate(user[1], uid, num_shares, certificate_type):
+                        st.success("A4 Sized Certificate will be sent to you within 10 days.")
+                elif certificate_type == "Small Card (₹40)":
+                    st.info("Small Card Certificate option selected. Please request if needed.")
 
-            st.markdown("### Investment Summary:")
-            st.write(f"**Current Investment:** ₹{user[4]}")
-            st.write(f"**Additional Investment:** ₹{additional_investment}")
-            st.write(f"**New Total Investment:** ₹{new_total_investment}")
-            st.write(f"**New Resale Value:** ₹{new_resale_value}")
-
-            # Certificate type selection
-            certificate_type = st.selectbox(
-                "Choose Certificate Type:",
-                ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"],
-                key="reinvest_cert_type"
-            )
-            cert_cost = 0
-            if certificate_type == "Small Card (₹40)":
-                cert_cost = 40
-            elif certificate_type == "A4 Sized Certificate (₹80)":
-                cert_cost = 80
-
-            if st.button("Confirm Reinvestment", key="confirm_reinvestment"):
-                try:
-                    # Update user investment and resale value
-                    db_wrapper.update_investment(uid, new_total_investment, new_resale_value)
-                    # Log transaction
-                    db_wrapper.add_transaction(uid, "reinvestment", additional_investment, "Added additional investment")
-                    st.success("Reinvestment successful!")
-
-                    # Generate certificate if selected and A4 option
-                    if certificate_type == "A4 Sized Certificate (₹80)":
-                        if generate_certificate(user[1], uid, num_shares, certificate_type):
-                            st.success("A4 Sized Certificate will be sent to you within 10 days.")
-                    elif certificate_type == "Small Card (₹40)":
-                        st.info("Small Card Certificate option selected. Please request if needed.")
-
-                    # Reset additional investment
-                    st.session_state['additional_investment'] = 0
-                    # Update user data
-                    st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
-                    st.experimental_rerun()
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
-        else:
-            st.info("Click 'Add ₹500' to increase your investment.")
+                # Reset additional investment
+                st.session_state.additional_investment = 0
+                # Update user data
+                st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+    else:
+        st.info("Click 'Add ₹500' to increase your investment.")
 
     # Option to reset verification
     if st.button("Cancel Reinvestment", key="cancel_reinvestment"):
@@ -317,69 +304,79 @@ def reinvestment(uid, user):
 
 def transfer_investment(uid, user):
     st.subheader("Transfer Investment")
+    
+    st.write(f"**Your Name:** {user[1]}")
+    st.write(f"**Your Current Investment:** ₹{user[4]}")
+    st.write(f"**Your Current Resale Value:** ₹{user[6]}")
 
-    # Secret code verification
-    secret_code = st.text_input("Enter the secret code to proceed:", key="transfer_secret_code", type="password")
-    if secret_code != 'swascat':
-        st.error("Invalid secret code.")
-    else:
-        st.write(f"**Your Name:** {user[1]}")
-        st.write(f"**Your Current Investment:** ₹{user[4]}")
-        st.write(f"**Your Current Resale Value:** ₹{user[6]}")
+    target_uid = st.text_input("Enter recipient's UID:", key="transfer_target_uid")
+    if st.button("Verify Recipient UID", key="verify_recipient_uid"):
+        target_user = db_wrapper.get_user_by_uid(target_uid)
+        if target_user:
+            st.success("Recipient UID verified!")
+            st.write(f"**Recipient Name:** {target_user[1]}")
+            st.write(f"**Recipient Current Investment:** ₹{target_user[4]}")
+            st.write(f"**Recipient Current Resale Value:** ₹{target_user[6]}")
 
-        target_uid = st.text_input("Enter recipient's UID:", key="transfer_target_uid")
-        if st.button("Verify Recipient UID", key="verify_recipient_uid"):
-            target_user = db_wrapper.get_user_by_uid(target_uid)
-            if target_user:
-                st.success("Recipient UID verified!")
-                st.write(f"**Recipient Name:** {target_user[1]}")
-                st.write(f"**Recipient Current Investment:** ₹{target_user[4]}")
-                st.write(f"**Recipient Current Resale Value:** ₹{target_user[6]}")
+            transfer_amount = st.number_input("Enter amount to transfer (in multiples of ₹500):",
+                                              min_value=500, step=500, key="transfer_amount")
 
-                transfer_amount = st.number_input("Enter amount to transfer (in multiples of ₹500):",
-                                                  min_value=500, step=500, key="transfer_amount")
+            # Certificate type selection
+            certificate_type = st.selectbox(
+                "Choose Certificate Type:",
+                ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"],
+                key="transfer_cert_type"
+            )
+            cert_cost = 0
+            if certificate_type == "Small Card (₹40)":
+                cert_cost = 40
+            elif certificate_type == "A4 Sized Certificate (₹80)":
+                cert_cost = 80
 
-                # Certificate type selection
-                certificate_type = st.selectbox("Choose Certificate Type:", ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"], key="transfer_cert_type")
-                cert_cost = 0 if "No Certificate" in certificate_type else (40 if "Small Card" in certificate_type else 80)
+            # Secret code verification only at confirmation
+            secret_code = st.text_input("Enter the secret code to proceed:", key="transfer_secret_code", type="password")
 
-                if st.button("Confirm Transfer", key="confirm_transfer"):
-                    if transfer_amount > user[4]:
-                        st.error("Transfer amount exceeds your current investment.")
-                    elif transfer_amount % 500 != 0:
-                        st.error("Transfer amount must be in multiples of ₹500.")
-                    else:
-                        # Calculate new investment and resale values
-                        sender_new_investment = user[4] - transfer_amount
-                        sender_num_shares = sender_new_investment // 500
-                        sender_new_resale = 480 * sender_num_shares
+            if st.button("Confirm Transfer", key="confirm_transfer"):
+                if secret_code != 'swascat':
+                    st.error("Invalid secret code.")
+                    return
+                    
+                if transfer_amount > user[4]:
+                    st.error("Transfer amount exceeds your current investment.")
+                elif transfer_amount % 500 != 0:
+                    st.error("Transfer amount must be in multiples of ₹500.")
+                else:
+                    # Calculate new investment and resale values
+                    sender_new_investment = user[4] - transfer_amount
+                    sender_num_shares = sender_new_investment // 500
+                    sender_new_resale = 480 * sender_num_shares
 
-                        recipient_new_investment = target_user[4] + transfer_amount
-                        recipient_num_shares = recipient_new_investment // 500
-                        recipient_new_resale = 480 * recipient_num_shares
+                    recipient_new_investment = target_user[4] + transfer_amount
+                    recipient_num_shares = recipient_new_investment // 500
+                    recipient_new_resale = 480 * recipient_num_shares
 
-                        try:
-                            # Update sender's data
-                            db_wrapper.update_investment(uid, sender_new_investment, sender_new_resale)
-                            db_wrapper.add_transaction(uid, "transfer_out", -transfer_amount,
-                                                       f"Transferred to UID {target_uid}")
+                    try:
+                        # Update sender's data
+                        db_wrapper.update_investment(uid, sender_new_investment, sender_new_resale)
+                        db_wrapper.add_transaction(uid, "transfer_out", -transfer_amount,
+                                                   f"Transferred to UID {target_uid}")
 
-                            # Update recipient's data
-                            db_wrapper.update_investment(target_uid, recipient_new_investment, recipient_new_resale)
-                            db_wrapper.add_transaction(target_uid, "transfer_in", transfer_amount,
-                                                       f"Received from UID {uid}")
+                        # Update recipient's data
+                        db_wrapper.update_investment(target_uid, recipient_new_investment, recipient_new_resale)
+                        db_wrapper.add_transaction(target_uid, "transfer_in", transfer_amount,
+                                                   f"Received from UID {uid}")
 
-                            st.success("Transfer successful!")
-                            # Generate certificate if selected
-                            if certificate_type == "A4 Sized Certificate (₹80)":
-                                generate_certificate(user[1], uid, transfer_amount // 500, certificate_type)
-                            # Update user data
-                            st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
-                            st.experimental_rerun()
-                        except Exception as e:
-                            st.error(f"An error occurred: {e}")
-            else:
-                st.error("Recipient UID not found.")
+                        st.success("Transfer successful!")
+                        # Generate certificate if selected
+                        if certificate_type == "A4 Sized Certificate (₹80)":
+                            generate_certificate(user[1], uid, transfer_amount // 500, certificate_type)
+                        # Update user data
+                        st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"An error occurred: {e}")
+        else:
+            st.error("Recipient UID not found.")
 
 def verify_uid():
     st.header("Verify UID")
