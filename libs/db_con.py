@@ -16,7 +16,7 @@ class DBWrapper:
 
     def _connect(self):
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self.connection = sqlite3.connect(self.db_path)
+        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
         self.cursor = self.connection.cursor()
 
     def _create_table(self):
@@ -58,7 +58,21 @@ class DBWrapper:
         self.cursor.execute('UPDATE users SET updates = ? WHERE uid = ?', 
                             (json.dumps(updates), uid))
         self.connection.commit()
+        
+    def get_all_users(self):
+        self.cursor.execute('SELECT * FROM users')
+        return self.cursor.fetchall()
 
+    def update_user_field(self, uid, field_name, new_value):
+        if field_name not in ['name', 'phone_hash', 'email_hash', 'amount_invested', 'date_of_investment', 'resale_value', 'certificate_type']:
+            raise ValueError('Invalid field name')
+        # Use parameterized query to prevent SQL injection
+        self.cursor.execute(f'UPDATE users SET {field_name} = ? WHERE uid = ?', (new_value, uid))
+        self.connection.commit()
+
+    def delete_user(self, uid):
+        self.cursor.execute('DELETE FROM users WHERE uid = ?', (uid,))
+        self.connection.commit()
     def get_updates(self, uid):
         self.cursor.execute('SELECT updates FROM users WHERE uid = ?', (uid,))
         result = self.cursor.fetchone()

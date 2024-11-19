@@ -1,2 +1,7 @@
 streamlit
 python-docx
+pandas
+psutil
+fuzzywuzzy[speedup]
+python-Levenshtein
+plotly

@@ -9,6 +9,9 @@ import json  # For handling JSON data in transactions
 import libs.certGen as cert_gen
 import os
 
+# Import admin functions from adminPanel.py
+from libs.adminPanel import admin_login, admin_panel
+
 SECRETCODE = os.environ.get("SECRET_CODE")
 
 def generate_certificate(user_name, uid, num_shares, certificate_type):
@@ -45,16 +48,22 @@ def main():
     st.set_page_config(
         page_title="Crowdfunding Portal",
         page_icon="💰",
-        layout="centered",
+        layout="wide",
     )
 
     # Initialize session state variables
     if 'current_page' not in st.session_state:
         st.session_state['current_page'] = 'home'
 
-    # Header
-    st.title("Welcome to the Crowdfunding Portal of Akshat Singh Kushwaha")
-    st.write("We appreciate your presence.")
+    # Add admin button at the bottom-left corner
+    add_admin_button()
+
+    # Header - Show different title based on current page
+    if st.session_state['current_page'] == 'admin':
+        st.title("Admin Panel")
+    else:
+        st.title("Welcome to the Crowdfunding Portal of Akshat Singh Kushwaha")
+        st.write("We appreciate your presence.")
 
     # Navigation logic
     if st.session_state['current_page'] == 'home':
@@ -63,14 +72,50 @@ def main():
         buy_shares()
     elif st.session_state['current_page'] == 'verify':
         verify_uid()
+    elif st.session_state['current_page'] == 'admin':
+        if st.session_state['admin_logged_in']:
+            admin_panel.admin_panel()
+        else:
+            admin_panel.admin_login()
+    elif st.session_state['current_page'] == 'about':
+        about_page()
+
+    # Add footer
+    st.markdown("""
+    <div style='position: fixed; bottom: 10px; width: 100%; text-align: center;'>
+        Made with ❤️ by <a href='https://github.com/a3ro-dev' target='_blank'>a3ro-dev</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+def add_admin_button():
+    # Use CSS to position the button
+    st.markdown(
+        """
+        <style>
+        .admin-button {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 12px;
+            z-index: 100;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    if st.button("Admin", key="admin_button_bottom"):
+        st.session_state['current_page'] = 'admin'
+        st.rerun()
 
 def home_page():
-    # Centered Buy and Verify buttons
+    # Centered Buy, Verify, Admin, and About buttons
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
         buy_clicked = st.button("Buy", key="buy_button")
         verify_clicked = st.button("Verify", key="verify_button")
+        admin_clicked = st.button("Admin", key="admin_button")
+        about_clicked = st.button("About", key="about_button")
         st.markdown('</div>', unsafe_allow_html=True)
     
     if buy_clicked:
@@ -79,6 +124,20 @@ def home_page():
     elif verify_clicked:
         st.session_state['current_page'] = 'verify'
         st.rerun()
+    elif admin_clicked:
+        st.session_state['current_page'] = 'admin'
+        st.rerun()
+    elif about_clicked:
+        st.session_state['current_page'] = 'about'
+        st.rerun()
+
+def about_page():
+    st.subheader("About This App")
+    st.write("""
+    This Crowdfunding Portal is designed to facilitate investments in an upcoming project by Akshat Singh Kushwaha. 
+    Investors can buy profit shares, reinvest, and transfer investments through this portal. 
+    The app also provides options for generating and managing investment certificates.
+    """)
 
 def buy_shares():
     st.header("Profit Shares* Management")
