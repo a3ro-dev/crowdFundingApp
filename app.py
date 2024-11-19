@@ -9,6 +9,8 @@ import json  # For handling JSON data in transactions
 import libs.certGen as cert_gen
 import os
 
+SECRETCODE = os.environ.get("SECRET_CODE")
+
 def generate_certificate(user_name, uid, num_shares, certificate_type):
     if certificate_type == "A4 Sized Certificate (₹80)":
         template_path = os.path.join("assets", "template.docx")
@@ -107,11 +109,11 @@ def new_user_investment():
 
     # Secret code verification
     secret_code = st.text_input("Enter the secret code to proceed:", key="new_secret_code", type="password")
-    if secret_code != 'swascat':
+    if secret_code != SECRETCODE:
         st.error("Invalid secret code.")
 
     # Proceed only if the secret code is correct
-    if secret_code == 'swascat':
+    if secret_code == SECRETCODE:
         # Investment amount
         if 'investment' not in st.session_state:
             st.session_state['investment'] = 0
@@ -269,7 +271,7 @@ def reinvestment(uid, user):
         secret_code = st.text_input("Enter the secret code to proceed:", key="reinvest_secret_code", type="password")
         
         if st.button("Confirm Reinvestment", key="confirm_reinvestment"):
-            if secret_code != 'swascat':
+            if secret_code != SECRETCODE:
                 st.error("Invalid secret code.")
                 return
                 
@@ -367,7 +369,7 @@ def transfer_investment(uid, user):
                 st.rerun()
         
         if st.button("Confirm Transfer"):
-            if secret_code != 'swascat':
+            if secret_code != SECRETCODE:
                 st.error("Invalid secret code.")
             elif transfer_amount > user[4]:
                 st.error("Transfer amount exceeds your current investment.")
