@@ -6,6 +6,34 @@ import libs.db_con as db_con
 import libs.uid_gen as uid_gen
 import json  # For handling JSON data in transactions
 
+import libs.certGen as cert_gen
+import os
+
+def generate_certificate(user_name, uid, num_shares, certificate_type):
+    if certificate_type == "A4 Sized Certificate (₹80)":
+        template_path = os.path.join("assets", "template.docx")
+        output_dir = os.path.join("assets", "certs")
+        
+        # Get date in words
+        current_date = datetime.now().strftime("%d %B %Y")
+        
+        # Calculate total percentage based on number of shares
+        total_percentage = f"{0.5 * num_shares}%"
+        
+        details = {
+            "{name}": user_name,
+            "{date}": current_date,
+            "{percentage}": total_percentage,
+            "{uid}": uid
+        }
+        
+        try:
+            output_path = cert_gen.generate_docx_with_shapes(template_path, output_dir, details)
+            return True
+        except Exception as e:
+            st.error(f"Error generating certificate: {e}")
+            return False
+    return False
 # Initialize database and UID generator
 db_wrapper = db_con.DBWrapper()
 uid_generator = uid_gen.UIDGen(db_wrapper)
@@ -112,11 +140,14 @@ def new_user_investment():
         ________________________
         **Total Payable    → ₹{total_payable}**
         """)
-
+        # Read and display the terms and conditions markdown file
+        with open("pages/terms_and_conditions.md", "r") as file:
+            terms_and_conditions = file.read()
+        st.markdown(terms_and_conditions, unsafe_allow_html=True)
         # Terms and conditions
         agree_tnc = st.checkbox("I agree to the Terms and Conditions", key="new_agree_tnc")
         agree_non_refund = st.checkbox("I agree that the amount is non-refundable except by the founder's will", key="new_agree_non_refund")
-        st.markdown("[View Terms and Conditions](assets/terms_and_conditions.md)", unsafe_allow_html=True)
+
 
         # Proceed button
         if st.button("Proceed", key="new_proceed"):
@@ -146,6 +177,9 @@ def new_user_investment():
                     st.write("Please note that your certificate of ownership will reach you in 10 days to a month.")
                     st.write(f"Total Payable Amount (including certificate cost): ₹{total_payable}")
                     st.write("Wait 4-8 hours for the UID to reflect on the verification page.")
+                    # Generate certificate if selected
+                    if certificate_type == "A4 Sized Certificate (₹80)":
+                        generate_certificate(full_name, uid, num_shares, certificate_type)
                     # Reset session state
                     st.session_state['investment'] = 0
                 except Exception as e:
@@ -229,6 +263,10 @@ def reinvestment(uid, user):
             st.write(f"New Total Investment: ₹{new_total_investment}")
             st.write(f"New Resale Value: ₹{new_resale_value}")
 
+            # Certificate type selection
+            certificate_type = st.selectbox("Choose Certificate Type:", ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"], key="reinvest_cert_type")
+            cert_cost = 0 if "No Certificate" in certificate_type else (40 if "Small Card" in certificate_type else 80)
+
             if st.button("Confirm Reinvestment", key="confirm_reinvestment"):
                 try:
                     # Update user investment and resale value
@@ -236,6 +274,9 @@ def reinvestment(uid, user):
                     # Log transaction
                     db_wrapper.add_transaction(uid, "reinvestment", additional_investment, "Added additional investment")
                     st.success("Reinvestment successful!")
+                    # Generate certificate if selected
+                    if certificate_type == "A4 Sized Certificate (₹80)":
+                        generate_certificate(user[1], uid, num_shares, certificate_type)
                     # Reset additional investment
                     st.session_state['additional_investment'] = 0
                     # Update user data
@@ -270,6 +311,10 @@ def transfer_investment(uid, user):
                 transfer_amount = st.number_input("Enter amount to transfer (in multiples of ₹500):",
                                                   min_value=500, step=500, key="transfer_amount")
 
+                # Certificate type selection
+                certificate_type = st.selectbox("Choose Certificate Type:", ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"], key="transfer_cert_type")
+                cert_cost = 0 if "No Certificate" in certificate_type else (40 if "Small Card" in certificate_type else 80)
+
                 if st.button("Confirm Transfer", key="confirm_transfer"):
                     if transfer_amount > user[4]:
                         st.error("Transfer amount exceeds your current investment.")
@@ -297,6 +342,9 @@ def transfer_investment(uid, user):
                                                        f"Received from UID {uid}")
 
                             st.success("Transfer successful!")
+                            # Generate certificate if selected
+                            if certificate_type == "A4 Sized Certificate (₹80)":
+                                generate_certificate(user[1], uid, transfer_amount // 500, certificate_type)
                             # Update user data
                             st.session_state.user_data = db_wrapper.get_user_by_uid(uid)
                             st.experimental_rerun()

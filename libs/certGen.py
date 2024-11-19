@@ -35,16 +35,3 @@ def generate_docx_with_shapes(template_path, output_dir, details):
         os.chmod(output_docx_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
 
     return output_docx_path
-
-# Example usage
-template_path = r"F:\investAkshat\assets\template.docx"
-output_dir = r"F:\investAkshat\assets\certs"
-details = {
-    "{name}": "Akshat Singh Kushwaha",
-    "{date}": "2024-11-19",
-    "{percentage}": "99.99%",
-    "{uid}": "uid"
-}
-
-output_docx_path = generate_docx_with_shapes(template_path, output_dir, details)
-print(f"Document saved at: {output_docx_path}")
