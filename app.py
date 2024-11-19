@@ -236,10 +236,20 @@ def existing_user_management():
 def reinvestment(uid, user):
     st.subheader("Reinvestment")
 
-    # Secret code verification
-    secret_code = st.text_input("Enter the secret code to proceed:", key="reinvest_secret_code", type="password")
-    if secret_code != 'swascat':
-        st.error("Invalid secret code.")
+    # Initialize reinvestment verification state
+    if 'reinvest_verified' not in st.session_state:
+        st.session_state.reinvest_verified = False
+
+    if not st.session_state.reinvest_verified:
+        # Secret code verification
+        secret_code = st.text_input("Enter the secret code to proceed:", key="reinvest_secret_code", type="password")
+        if st.button("Verify", key="reinvest_verify_button"):
+            if secret_code == 'swascat':
+                st.session_state.reinvest_verified = True
+                st.success("Secret code verified!")
+                st.experimental_rerun()
+            else:
+                st.error("Invalid secret code.")
     else:
         st.write(f"**Name:** {user[1]}")
         st.write(f"**Current Investment:** ₹{user[4]}")
@@ -258,14 +268,22 @@ def reinvestment(uid, user):
             new_resale_value = 480 * num_shares
 
             st.markdown("### Investment Summary:")
-            st.write(f"Current Investment: ₹{user[4]}")
-            st.write(f"Additional Investment: ₹{additional_investment}")
-            st.write(f"New Total Investment: ₹{new_total_investment}")
-            st.write(f"New Resale Value: ₹{new_resale_value}")
+            st.write(f"**Current Investment:** ₹{user[4]}")
+            st.write(f"**Additional Investment:** ₹{additional_investment}")
+            st.write(f"**New Total Investment:** ₹{new_total_investment}")
+            st.write(f"**New Resale Value:** ₹{new_resale_value}")
 
             # Certificate type selection
-            certificate_type = st.selectbox("Choose Certificate Type:", ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"], key="reinvest_cert_type")
-            cert_cost = 0 if "No Certificate" in certificate_type else (40 if "Small Card" in certificate_type else 80)
+            certificate_type = st.selectbox(
+                "Choose Certificate Type:",
+                ["No Certificate", "Small Card (₹40)", "A4 Sized Certificate (₹80)"],
+                key="reinvest_cert_type"
+            )
+            cert_cost = 0
+            if certificate_type == "Small Card (₹40)":
+                cert_cost = 40
+            elif certificate_type == "A4 Sized Certificate (₹80)":
+                cert_cost = 80
 
             if st.button("Confirm Reinvestment", key="confirm_reinvestment"):
                 try:
@@ -274,9 +292,14 @@ def reinvestment(uid, user):
                     # Log transaction
                     db_wrapper.add_transaction(uid, "reinvestment", additional_investment, "Added additional investment")
                     st.success("Reinvestment successful!")
-                    # Generate certificate if selected
+
+                    # Generate certificate if selected and A4 option
                     if certificate_type == "A4 Sized Certificate (₹80)":
-                        generate_certificate(user[1], uid, num_shares, certificate_type)
+                        if generate_certificate(user[1], uid, num_shares, certificate_type):
+                            st.success("A4 Sized Certificate will be sent to you within 10 days.")
+                    elif certificate_type == "Small Card (₹40)":
+                        st.info("Small Card Certificate option selected. Please request if needed.")
+
                     # Reset additional investment
                     st.session_state['additional_investment'] = 0
                     # Update user data
@@ -286,6 +309,11 @@ def reinvestment(uid, user):
                     st.error(f"An error occurred: {e}")
         else:
             st.info("Click 'Add ₹500' to increase your investment.")
+
+    # Option to reset verification
+    if st.button("Cancel Reinvestment", key="cancel_reinvestment"):
+        st.session_state.reinvest_verified = False
+        st.experimental_rerun()
 
 def transfer_investment(uid, user):
     st.subheader("Transfer Investment")
