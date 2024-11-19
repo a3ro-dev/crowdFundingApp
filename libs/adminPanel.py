@@ -56,8 +56,12 @@ class AdminPanel:
 
         users = self.db_wrapper.get_all_users()
         
-        # Convert to DataFrame
-        df = pd.DataFrame(users, columns=['UID', 'Name', 'Phone Hash', 'Email Hash', 'Amount Invested', 'Date', 'Resale Value', 'Certificate Type'])
+        # Convert to DataFrame - match columns with database schema
+        df = pd.DataFrame(users, columns=[
+            'UID', 'Name', 'Phone Hash', 'Email Hash', 
+            'Amount Invested', 'Date of Investment', 
+            'Resale Value', 'Certificate Type', 'Updates', 'Transactions'
+        ])
         
         # Create column filters
         col1, col2, col3, col4 = st.columns(4)
@@ -148,14 +152,25 @@ class AdminPanel:
         
         if search_query:
             search_query = search_query.lower()
-            # Perform fuzzy search on processed names
-            matched_files = process.extract(
+            # Fix fuzzy search logic
+            matched_names = process.extract(
                 search_query, 
-                {file: name for file, name in processed_names.items()},
+                {str(name): name for name in processed_names.values()},
                 scorer=fuzz.partial_ratio,
                 limit=50
             )
-            files_to_display = [file for file, score in matched_files if score > 75]
+            
+            files_to_display = []
+            for _, (matched_name, score) in enumerate(matched_names):
+                if score > 75:
+                    # Find the file that corresponds to this name
+                    matching_file = next(
+                        (file for file, proc_name in processed_names.items() 
+                         if proc_name == matched_name),
+                        None
+                    )
+                    if matching_file:
+                        files_to_display.append(matching_file)
         else:
             files_to_display = all_cert_files
 
